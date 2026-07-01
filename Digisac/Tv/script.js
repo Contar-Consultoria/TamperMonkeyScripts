@@ -7,7 +7,7 @@
 // @author       Gabriel Silveira <gabrielsilveira@contarconsultoria.com>
 // @match        https://contarconsultoria.digisac.io/*
 // @grant        GM_notification
-// @require      https://raw.githubusercontent.com/Contar-Consultoria/TamperMonkeyScripts/refs/heads/master/Digisac/Tv/DigisacMonitorChatsFila.js
+// @require      https://raw.githubusercontent.com/Contar-Consultoria/TamperMonkeyScripts/refs/heads/master/Digisac/Tv/DigisacMonitorChatsFilaTV.js
 // @run-at       document-start
 // ==/UserScript==
 
