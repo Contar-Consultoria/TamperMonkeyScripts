@@ -7,7 +7,7 @@
 // @grant        GM_notification
 // @grant        GM_addStyle
 // @require      https://raw.githubusercontent.com/Contar-Consultoria/TamperMonkeyScripts/refs/heads/master/Digisac/Tag/DigisacTagInadimplentes.js
-// @require      https://raw.githubusercontent.com/Contar-Consultoria/TamperMonkeyScripts/main/Digisac/Modulos/MonitorFila.js
+// @require      https://raw.githubusercontent.com/Contar-Consultoria/TamperMonkeyScripts/refs/heads/master/Digisac/Usuario/DigisacMonitorChatsFila.js
 // ==/UserScript==
 
 (function() {
