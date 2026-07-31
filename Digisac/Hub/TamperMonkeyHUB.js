@@ -82,7 +82,7 @@ window.iniciarDigisacContar = async function () {
     }
 
     // ========================================================================
-    // MÓDULO 2: TAGS (Injeção de CSS)
+    // MÓDULO 2: TAGS (Injeção de CSS e Escuta de Rede Blindada)
     // ========================================================================
     async function iniciarModuloTags() {
         console.log("[Módulo] Tags (Inadimplentes e Interno) inicializado.");
@@ -94,17 +94,13 @@ window.iniciarDigisacContar = async function () {
             .card-script-interno span { color: #00b33c !important; font-weight: bold !important; }
         `;
 
-        // Proteção para injetar o CSS mesmo se o DOM ainda estiver carregando
         if (typeof GM_addStyle !== "undefined") {
             GM_addStyle(css);
         } else {
             const styleSheet = document.createElement("style");
             styleSheet.innerText = css;
-            if(document.head) {
-                document.head.appendChild(styleSheet);
-            } else {
-                document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleSheet));
-            }
+            if(document.head) document.head.appendChild(styleSheet);
+            else document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleSheet));
         }
 
         const TAG_INADIMPLENTE = "inadimplente";
@@ -114,8 +110,10 @@ window.iniciarDigisacContar = async function () {
         function processarContatos(data) {
             let lista = Array.isArray(data) ? data : (data.data ? data.data : []);
             
-            if(lista.length > 0) {
+            if (lista.length > 0) {
                 console.log(`[Módulo Tags] Analisando pacote com ${lista.length} contatos da API...`);
+            } else {
+                console.log(`[Módulo Tags] Pacote recebido, mas parecia vazio. Dados brutos:`, data);
             }
 
             let atualizouTela = false;
@@ -144,32 +142,51 @@ window.iniciarDigisacContar = async function () {
             });
 
             if (atualizouTela) {
-                console.log("[Módulo Tags] INADIMPLENTES/INTERNOS IDENTIFICADOS:", Array.from(statusClientes.entries()));
+                console.log("[Módulo Tags] CLIENTES MARCADOS:", Array.from(statusClientes.entries()));
                 destacarNaTela();
             }
         }
 
+        // 1. Interceptor de Fetch Blindado
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
-            const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+            let url = '';
+            if (args[0] instanceof Request) url = args[0].url;
+            else if (typeof args[0] === 'string') url = args[0];
+
             const response = await originalFetch.apply(this, args);
-            if (url.includes('/api/v1/contacts/list') || url.includes('/api/v1/contacts')) {
-                response.clone().json().then(processarContatos).catch(() => {});
+            if (url && (url.includes('/api/v1/contacts/list') || url.includes('/api/v1/contacts'))) {
+                try {
+                    response.clone().json().then(data => {
+                        console.log("[Módulo Tags] API interceptada via Fetch!");
+                        processarContatos(data);
+                    }).catch(() => {});
+                } catch(e) {}
             }
             return response;
         };
 
-        const originalXHR = window.XMLHttpRequest;
-        function newXHR() {
-            const xhr = new originalXHR();
-            xhr.addEventListener('load', function () {
-                if (xhr.responseURL && (xhr.responseURL.includes('/api/v1/contacts/list') || xhr.responseURL.includes('/api/v1/contacts'))) {
-                    try { processarContatos(JSON.parse(xhr.responseText)); } catch (e) { }
+        // 2. Interceptor de XHR (Axios) Blindado na Raiz (Prototype)
+        const XHR = XMLHttpRequest.prototype;
+        const originalOpen = XHR.open;
+        const originalSend = XHR.send;
+
+        XHR.open = function(method, url) {
+            this._requestUrl = url;
+            return originalOpen.apply(this, arguments);
+        };
+
+        XHR.send = function() {
+            this.addEventListener('load', function() {
+                if (this._requestUrl && (this._requestUrl.includes('/api/v1/contacts/list') || this._requestUrl.includes('/api/v1/contacts'))) {
+                    try {
+                        console.log("[Módulo Tags] API interceptada via XHR!");
+                        processarContatos(JSON.parse(this.responseText));
+                    } catch(e) {}
                 }
             });
-            return xhr;
-        }
-        window.XMLHttpRequest = newXHR;
+            return originalSend.apply(this, arguments);
+        };
 
         function destacarNaTela() {
             if (statusClientes.size === 0) return;
@@ -204,7 +221,6 @@ window.iniciarDigisacContar = async function () {
             });
         }
         
-        // Verifica a tela a cada 2 segundos e caso hajam mutações
         setInterval(destacarNaTela, 2000);
         document.addEventListener('DOMContentLoaded', () => {
             const observer = new MutationObserver(() => destacarNaTela());
