@@ -3,81 +3,124 @@ window.iniciarDigisacContar = async function () {
     console.log("[Digisac Unified] Iniciando módulos de forma assíncrona...");
 
     // ========================================================================
-    // MÓDULO 1: NOTIFICAÇÕES (Fila e Chats Aguardando)
+    // MÓDULO 1: NOTIFICAÇÕES (Fila, Chats Aguardando e SLA)
     // ========================================================================
     async function iniciarModuloMonitor() {
-        console.log("[Módulo] Monitor de Chats e Fila inicializado.");
+        console.log("[Módulo] Monitor de Chats, Fila e SLA inicializado.");
+        
         const INTERVALO = 30000;
-        const INTERVALO_RESPOSTA = 120000;
-        const INTERVALO_ABERTOS = 240000;
-        const INTERVALO_FILA = 120000;
+        const INTERVALO_RESPOSTA = 120000; // 2 minutos
+        const INTERVALO_ABERTOS = 1080000; // 18 minutos
+        const INTERVALO_FILA = 120000; // 2 minutos
 
         let ultimaResposta = 0;
         let ultimoAberto = 0;
         let ultimaFila = 0;
 
-        if (Notification.permission !== 'granted') {
-            Notification.requestPermission();
+        try {
+            if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+                Notification.requestPermission();
+            }
+        } catch (e) {
+            console.error('[Digisac] Falha ao solicitar permissão de notificação:', e);
         }
 
         function notificar(mensagem) {
-            if (Notification.permission !== 'granted') return;
-            const notificacao = new Notification('DIGISAC', { body: mensagem });
-            setTimeout(() => { notificacao.close(); }, 10000);
+            try {
+                if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+                const notificacao = new Notification('DIGISAC', { body: mensagem });
+                setTimeout(() => {
+                    try { notificacao.close(); } catch (e) { /* ignora */ }
+                }, 10000);
+            } catch (e) {
+                console.error('[Digisac] Falha ao notificar:', e);
+            }
         }
 
         function quantidadeFila() {
-            const abaFila = document.querySelector('[data-testid="chat-tab-queue_calls"]') || document.querySelector('[data-testid*="queue-calls"]');
-            if (!abaFila) return 0;
-            const badge = abaFila.querySelector('.badge.badge-primary.badge-pill') || abaFila.querySelector('.badge.badge-primary');
-            return badge ? parseInt(badge.textContent.trim(), 10) || 0 : 0;
+            try {
+                const abaFila = document.querySelector('[data-testid="chat-tab-queue_calls"]') || document.querySelector('[data-testid*="queue-calls"]');
+                if (!abaFila) return 0;
+                const badge = abaFila.querySelector('.badge.badge-primary.badge-pill') || abaFila.querySelector('.badge.badge-primary');
+                if (!badge) return 0;
+                const numero = parseInt(badge.textContent.trim(), 10);
+                return isNaN(numero) ? 0 : numero;
+            } catch (e) {
+                console.error('[Digisac] Erro em quantidadeFila:', e);
+                return 0;
+            }
         }
 
         function quantidadeChats() {
-            const abaChats = document.querySelector('[data-testid="chat-tab-mine"]');
-            if (!abaChats) return 0;
-            const badge = abaChats.querySelector('.badge.badge-primary.badge-pill') || abaChats.querySelector('.badge.badge-primary');
-            const totalChats = badge ? parseInt(badge.textContent.trim(), 10) : 0;
-            if (isNaN(totalChats) || totalChats === 0) return 0;
-
-            const contatos = document.querySelectorAll('.chatContactDiv');
-            if (!contatos.length) return totalChats;
-
-            let aguardandoResposta = 0;
-            contatos.forEach(contato => {
-                const wrapper = contato.querySelector('.last-message-wrapper');
-                if (wrapper && !wrapper.querySelector('svg')) aguardandoResposta++;
-            });
-            return aguardandoResposta;
-        }
-
-        function verificar() {
-            const chatsComigo = (() => {
+            try {
                 const abaChats = document.querySelector('[data-testid="chat-tab-mine"]');
                 if (!abaChats) return 0;
                 const badge = abaChats.querySelector('.badge.badge-primary.badge-pill') || abaChats.querySelector('.badge.badge-primary');
-                return badge ? parseInt(badge.textContent.trim(), 10) || 0 : 0;
-            })();
+                const totalChats = badge ? parseInt(badge.textContent.trim(), 10) : 0;
+                
+                if (isNaN(totalChats) || totalChats === 0) return 0;
 
-            const chatsAguardando = quantidadeChats();
-            const fila = quantidadeFila();
-            console.log(`[Digisac Monitor] ${new Date().toLocaleTimeString()} | Chats comigo: ${chatsComigo} | Aguardando resposta: ${chatsAguardando} | Fila: ${fila}`);
+                const contatos = document.querySelectorAll('.chatContactDiv');
+                if (!contatos.length) return totalChats;
 
-            const agora = Date.now();
-            if (chatsAguardando > 0 && agora - ultimaResposta >= INTERVALO_RESPOSTA) {
-                notificar(`• ${chatsAguardando} atendimento(s) aguardando sua resposta`);
-                ultimaResposta = agora;
-            }
-            if (chatsComigo > 0 && agora - ultimoAberto >= INTERVALO_ABERTOS) {
-                notificar(`• ${chatsComigo} atendimento(s) com você`);
-                ultimoAberto = agora;
-            }
-            if (fila > 0 && agora - ultimaFila >= INTERVALO_FILA) {
-                notificar(`• ${fila} chamado(s) na fila`);
-                ultimaFila = agora;
+                let aguardandoResposta = 0;
+                contatos.forEach(contato => {
+                    const wrapper = contato.querySelector('.last-message-wrapper');
+                    if (!wrapper) return;
+                    const checkOperador = wrapper.querySelector('svg');
+                    if (!checkOperador) aguardandoResposta++;
+                });
+
+                return Math.min(aguardandoResposta, totalChats);
+            } catch (e) {
+                console.error('[Digisac] Erro em quantidadeChats:', e);
+                return 0;
             }
         }
-        setTimeout(verificar, 1000);
+
+        function verificar() {
+            try {
+                const chatsComigo = (() => {
+                    try {
+                        const abaChats = document.querySelector('[data-testid="chat-tab-mine"]');
+                        if (!abaChats) return 0;
+                        const badge = abaChats.querySelector('.badge.badge-primary.badge-pill') || abaChats.querySelector('.badge.badge-primary');
+                        if (!badge) return 0;
+                        const numero = parseInt(badge.textContent.trim(), 10);
+                        return isNaN(numero) ? 0 : numero;
+                    } catch (e) {
+                        console.error('[Digisac] Erro ao ler badge chatsComigo:', e);
+                        return 0;
+                    }
+                })();
+
+                const chatsAguardando = quantidadeChats();
+                const fila = quantidadeFila();
+
+                console.log(`[Digisac] ${new Date().toLocaleTimeString()} | Chats comigo: ${chatsComigo} | Aguardando resposta: ${chatsAguardando} | Fila: ${fila}`);
+
+                const agora = Date.now();
+
+                if (chatsAguardando > 0 && agora - ultimaResposta >= INTERVALO_RESPOSTA) {
+                    notificar(`• ${chatsAguardando} atendimento(s) aguardando sua resposta`);
+                    ultimaResposta = agora;
+                }
+
+                if (chatsComigo > 0 && agora - ultimoAberto >= INTERVALO_ABERTOS) {
+                    notificar(`• ${chatsComigo} ATENÇÃO! Atendimento se encerrando em 2 minutos!`);
+                    ultimoAberto = agora;
+                }
+
+                if (fila > 0 && agora - ultimaFila >= INTERVALO_FILA) {
+                    notificar(`• ${fila} chamado(s) na fila`);
+                    ultimaFila = agora;
+                }
+            } catch (e) {
+                console.error('[Digisac] Erro em verificar():', e);
+            }
+        }
+
+        setTimeout(verificar, 500);
         setInterval(verificar, INTERVALO);
     }
 
@@ -147,7 +190,6 @@ window.iniciarDigisacContar = async function () {
             }
         }
 
-        // 1. Interceptor de Fetch Blindado
         const originalFetch = window.fetch;
         window.fetch = async function (...args) {
             let url = '';
@@ -166,7 +208,6 @@ window.iniciarDigisacContar = async function () {
             return response;
         };
 
-        // 2. Interceptor de XHR (Axios) Blindado na Raiz (Prototype)
         const XHR = XMLHttpRequest.prototype;
         const originalOpen = XHR.open;
         const originalSend = XHR.send;
