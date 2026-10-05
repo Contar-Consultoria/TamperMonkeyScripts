@@ -1,14 +1,4 @@
-// ==UserScript==
-// @name         Digisac - Monitor Chats + Fila
-// @namespace    http://tampermonkey.net/
-// @version      8.0
-// @description  Monitora fila, chats aguardando resposta e atendimentos prestes a encerrar por inatividade (compatível com o layout novo e o antigo do Digisac)
-// @author       Gabriel Silveira e Tiago Debossan
-// @match        https://contarconsultoria.digisac.io/*
-// @grant        GM_notification
-// @grant        unsafeWindow
-// @run-at       document-start
-// ==/UserScript==
+
 (function () {
     'use strict';
 
